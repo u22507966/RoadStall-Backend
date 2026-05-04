@@ -11,5 +11,6 @@ namespace RoadStallAPI.Models.DTOs
         public int OpeningStock { get; set; }
         public int ClosingStock { get; set; }
         public int Variance => ClosingStock - OpeningStock;
+        public int StockLeft { get; set; }
     }
 }

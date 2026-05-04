@@ -12,7 +12,9 @@ namespace RoadStallAPI.Models
         public int ClosingStock { get; set; }
         public required string StockName { get; set; }
         public decimal Price { get; set; }
-        
+
+        public int StockLeft { get; set; }
+
         // Navigation properties
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public Stock? Stock { get; set; }

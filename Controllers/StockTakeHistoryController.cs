@@ -80,7 +80,8 @@ namespace RoadStallAPI.Controllers
                         OpeningStock = stockTake?.OpeningStock ?? 0,  // 0 if not updated today
                         ClosingStock = stockTake?.ClosingStock ?? 0,  // 0 if not updated today
                         StockName = stock.StockName,
-                        Price = stock.Price
+                        Price = stock.Price,
+                        StockLeft = stock.Quantity
                     };
                 }).ToList();
 
@@ -145,7 +146,8 @@ namespace RoadStallAPI.Controllers
                     Username = h.User != null ? h.User.Username : "Unknown",
                     SnapshotDate = h.SnapshotDate,
                     OpeningStock = h.OpeningStock,
-                    ClosingStock = h.ClosingStock
+                    ClosingStock = h.ClosingStock,
+                    StockLeft = h.StockLeft
                 })
                 .ToListAsync();
 
@@ -180,7 +182,8 @@ namespace RoadStallAPI.Controllers
                     Username = h.User != null ? h.User.Username : "Unknown",
                     SnapshotDate = h.SnapshotDate,
                     OpeningStock = h.OpeningStock,
-                    ClosingStock = h.ClosingStock
+                    ClosingStock = h.ClosingStock,
+                    StockLeft = h.StockLeft
                 })
                 .ToListAsync();
 
@@ -206,7 +209,8 @@ namespace RoadStallAPI.Controllers
                     Username = h.User != null ? h.User.Username : "Unknown",
                     SnapshotDate = h.SnapshotDate,
                     OpeningStock = h.OpeningStock,
-                    ClosingStock = h.ClosingStock
+                    ClosingStock = h.ClosingStock,
+                    StockLeft = h.StockLeft
                 })
                 .ToListAsync();
 
@@ -238,7 +242,7 @@ namespace RoadStallAPI.Controllers
             var history = await _context.StockTakeHistory
                 .Include(h => h.User)
                 .Where(h => h.SnapshotDate.Date == date.Date)
-                .OrderBy(h => h.StockName)
+                .OrderBy(h => h.StockId)
                 .ToListAsync();
 
             if (!history.Any())
@@ -246,19 +250,54 @@ namespace RoadStallAPI.Controllers
                 return NotFound(new { message = $"No history found for {date:yyyy-MM-dd}" });
             }
 
-            // Get stock received for this date
-            var stockReceived = await _context.StockChange
-                .Where(sc => sc.ChangeDate.Date == date.Date && sc.ChangeType == "Stock Received")
-                .GroupBy(sc => sc.StockId)
-                .Select(g => new { StockId = g.Key, TotalReceived = g.Sum(sc => sc.Quantity) })
-                .ToDictionaryAsync(x => x.StockId, x => x.TotalReceived);
+            var stockChanges = await _context.StockChange
+                .Include(sc => sc.User)
+                .Where(sc => sc.ChangeDate.Date == date.Date &&
+                    (sc.ChangeType == "Stock Received" || sc.ChangeType == "Stock Removed"))
+                .OrderBy(sc => sc.StockId)
+                .ThenBy(sc => sc.ChangeDate)
+                .ThenBy(sc => sc.Id)
+                .Select(sc => new
+                {
+                    sc.StockId,
+                    Id = sc.Id,
+                    Quantity = sc.Quantity,
+                    ChangeDate = sc.ChangeDate,
+                    UserId = sc.UserId,
+                    Username = sc.User != null ? sc.User.Username : "Unknown",
+                    ChangeType = sc.ChangeType
+                })
+                .ToListAsync();
 
-            // Get stock removed for this date
-            var stockRemoved = await _context.StockChange
-                .Where(sc => sc.ChangeDate.Date == date.Date && sc.ChangeType == "Stock Removed")
+            var receivedByStockId = stockChanges
+                .Where(sc => sc.ChangeType == "Stock Received")
                 .GroupBy(sc => sc.StockId)
-                .Select(g => new { StockId = g.Key, TotalRemoved = g.Sum(sc => sc.Quantity) })
-                .ToDictionaryAsync(x => x.StockId, x => x.TotalRemoved);
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(sc => new StockChangeExportItemDto
+                    {
+                        Id = sc.Id,
+                        Quantity = sc.Quantity,
+                        ChangeDate = sc.ChangeDate,
+                        UserId = sc.UserId,
+                        Username = sc.Username,
+                        ChangeType = sc.ChangeType
+                    }).ToList());
+
+            var removedByStockId = stockChanges
+                .Where(sc => sc.ChangeType == "Stock Removed")
+                .GroupBy(sc => sc.StockId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(sc => new StockChangeExportItemDto
+                    {
+                        Id = sc.Id,
+                        Quantity = sc.Quantity,
+                        ChangeDate = sc.ChangeDate,
+                        UserId = sc.UserId,
+                        Username = sc.Username,
+                        ChangeType = sc.ChangeType
+                    }).ToList());
 
             // Get ACTUAL SALES from the Sale table for this date
             var unitsSold = await _context.Sale
@@ -267,24 +306,38 @@ namespace RoadStallAPI.Controllers
                 .Select(g => new { StockId = g.Key, TotalSold = g.Sum(s => s.QuantitySold) })
                 .ToDictionaryAsync(x => x.StockId, x => x.TotalSold);
 
-            var exportData = history.Select(h => new
+            var exportData = history.Select(h =>
             {
-                Date = h.SnapshotDate.ToString("yyyy-MM-dd"),
-                StockName = h.StockName,
-                Price = h.Price,
-                OpeningStock = h.OpeningStock,
-                StockReceived = stockReceived.ContainsKey(h.StockId) ? stockReceived[h.StockId] : 0,
-                StockRemoved = stockRemoved.ContainsKey(h.StockId) ? stockRemoved[h.StockId] : 0,
-                UnitsSold = unitsSold.ContainsKey(h.StockId) ? unitsSold[h.StockId] : 0,  // ACTUAL SALES
-                ClosingStock = h.ClosingStock,
-                Variance = h.ClosingStock - h.OpeningStock,
-                // Calculate expected closing stock to show discrepancies
-                ExpectedClosing = h.OpeningStock 
-                    + (stockReceived.ContainsKey(h.StockId) ? stockReceived[h.StockId] : 0)
-                    - (stockRemoved.ContainsKey(h.StockId) ? stockRemoved[h.StockId] : 0)
-                    - (unitsSold.ContainsKey(h.StockId) ? unitsSold[h.StockId] : 0),
-                RecordedBy = h.User != null ? h.User.Username : "system",
-                WasUpdatedToday = h.OpeningStock > 0 || h.ClosingStock > 0
+                var receivedEntries = receivedByStockId.TryGetValue(h.StockId, out var received)
+                    ? received
+                    : [];
+                var removedEntries = removedByStockId.TryGetValue(h.StockId, out var removed)
+                    ? removed
+                    : [];
+                var totalReceived = receivedEntries.Sum(entry => entry.Quantity);
+                var totalRemoved = removedEntries.Sum(entry => entry.Quantity);
+
+                return new StockTakeHistoryExportDto
+                {
+                    Date = h.SnapshotDate.ToString("yyyy-MM-dd"),
+                    StockId = h.StockId,
+                    StockName = h.StockName,
+                    Price = h.Price,
+                    OpeningStock = h.OpeningStock,
+                    StockReceived = totalReceived,
+                    StockRemoved = totalRemoved,
+                    UnitsSold = unitsSold.ContainsKey(h.StockId) ? unitsSold[h.StockId] : 0,
+                    ClosingStock = h.ClosingStock,
+                    StockLeft = h.StockLeft,
+                    Variance = h.ClosingStock - h.OpeningStock,
+                    ExpectedClosing = h.OpeningStock + totalReceived - totalRemoved - (unitsSold.ContainsKey(h.StockId) ? unitsSold[h.StockId] : 0),
+                    RecordedBy = h.User != null ? h.User.Username : "system",
+                    WasUpdatedToday = h.OpeningStock > 0 || h.ClosingStock > 0,
+                    ReceivedEntries = receivedEntries,
+                    RemovedEntries = removedEntries,
+                    StockReceivedDisplay = string.Join(Environment.NewLine, receivedEntries.Select(entry => $"+{entry.Quantity}")),
+                    StockRemovedDisplay = string.Join(Environment.NewLine, removedEntries.Select(entry => $"-{entry.Quantity}"))
+                };
             }).ToList();
 
             return Ok(new
