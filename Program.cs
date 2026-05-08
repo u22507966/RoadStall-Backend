@@ -18,14 +18,20 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Configure database based on environment
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
 if (string.IsNullOrEmpty(connectionString))
 {
     throw new InvalidOperationException("Database connection string 'DefaultConnection' not found.");
 }
 
 builder.Services.AddDbContext<RoadStallDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseSqlServer(connectionString, sqlOptions =>
+    {
+        // Enable transient fault resiliency
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null);
+    }));
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -58,16 +64,16 @@ using (var scope = app.Services.CreateScope())
     
     try
     {
-        Console.WriteLine("Applying database migrations...");
-        db.Database.Migrate();                                                                  //----------------------comment out if crashing upon migration------------------------
-        Console.WriteLine("Database migrations applied successfully.");
+        app.Logger.LogInformation("Applying database migrations...");
+        db.Database.Migrate();
+        app.Logger.LogInformation("Database migrations applied successfully.");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Database migration error: {ex.Message}");
-        Console.WriteLine($"Stack trace: {ex.StackTrace}");
-        // DON'T throw - let app start even if migrations fail (for debugging)
-        // throw; // Commented out temporarily to allow app to start
+        // Log full exception to App Service log stream
+        app.Logger.LogError(ex, "Database migration error");
+        // Consider rethrowing in CI/CD or failing the deployment if you want immediate visibility:
+        // throw;
     }
 }
 
