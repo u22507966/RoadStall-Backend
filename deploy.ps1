@@ -1,6 +1,9 @@
 # PowerShell script to publish to Azure
 # Run this if Visual Studio publish fails
 
+$projectRoot = $PSScriptRoot
+$publishRoot = Join-Path (Split-Path $projectRoot -Parent) "RoadStallAPI_publish"
+
 Write-Host "Cleaning previous builds..." -ForegroundColor Yellow
 dotnet clean
 
