@@ -17,8 +17,8 @@ namespace RoadStallAPI.Controllers
         }
 
         /// <summary>
-        /// Creates a snapshot of ALL stocks in the system - Called by Azure Function at midnight
-        /// - Stocks updated today: Real opening/closing values
+        /// Creates a snapshot of ALL stocks in the system and rolls stock takes forward for the next day. Also sets stock.stockLeft = closing stock before rollover
+        /// - Stocks updated today: Real opening/closing values         ------ THIS IS NOW BROKEN/IRRELEVANT, rollover means that all products are considered "updated" and will have opening = previous closing, closing = 0
         /// - Stocks NOT updated today: Opening/Closing = 0
         /// </summary>
         [HttpPost("snapshot")]
@@ -27,6 +27,7 @@ namespace RoadStallAPI.Controllers
             try
             {
                 var today = DateTime.Today;
+                var nextDay = today.AddDays(1);
 
                 // Check if snapshot already exists for today
                 var existingSnapshot = await _context.StockTakeHistory
@@ -88,16 +89,41 @@ namespace RoadStallAPI.Controllers
                 _context.StockTakeHistory.AddRange(historyRecords);
                 await _context.SaveChangesAsync();
 
+
+                //Rollover code to set opening = closing, and then closing = 0
+                var stockTakesToRollOver = await _context.StockTake.ToListAsync();
+
+                foreach (var stockTake in stockTakesToRollOver)
+                {
+                    stockTake.OpeningStock = stockTake.ClosingStock;
+                    
+                    var thisStock = await _context.Stock.FindAsync(stockTake.StockId);          //Updating stock quantity to closing stock, otherwise there is disparity between opening stock and stock left values the next day
+                    if(thisStock == null)
+                    {
+                        continue; // Skip if stock not found
+                    }
+                    thisStock.Quantity = stockTake.ClosingStock;
+
+                    stockTake.ClosingStock = 0;
+                    stockTake.Date = nextDay;
+                }
+
+                await _context.SaveChangesAsync();
+
                 var updatedCount = todaysStockTakes.Count;
                 var notUpdatedCount = allStocks.Count - updatedCount;
 
+                //Setting 
+
                 return Ok(new 
                 { 
-                    message = "Daily snapshot created successfully for all products",
+                    message = "Daily snapshot created successfully and stock takes rolled over for the next day",
                     date = today,
+                    nextBusinessDate = nextDay,
                     totalProducts = allStocks.Count,
                     productsUpdatedToday = updatedCount,
                     productsNotUpdated = notUpdatedCount,
+                    stockTakesRolledOver = stockTakesToRollOver.Count,
                     defaultUserId = defaultUser.Id,
                     defaultUsername = defaultUser.Username,
                     updatedStocks = todaysStockTakes.Values.Select(st => 
