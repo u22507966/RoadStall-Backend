@@ -43,6 +43,30 @@ namespace RoadStallAPI.Controllers
             return sale;
         }
 
+        [HttpGet("exportSales/{day}")]
+        public async Task<ActionResult<List<Sale>>> GetSalesFromDay(DateTime day)
+        {
+            var start = day.Date;
+            var end = start.AddDays(1);
+
+            if(day > DateTime.Today)
+            {
+                return BadRequest("Cannot ask for future dates");
+            }
+      
+            
+            var sales = await _context.Sale.Where(s => s.Date >= start && s.Date < end).ToListAsync();
+
+            if (sales.Count <= 0)
+            {
+                return BadRequest("No sales were made on the specified date");
+            }
+
+            return sales;
+
+
+        }
+
         // PUT: api/Sales/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
