@@ -49,7 +49,7 @@ namespace RoadStallAPI.Controllers
             var start = day.Date;
             var end = start.AddDays(1);
 
-            if(day > DateTime.Today)
+            if(day.Date > DateTime.Today)
             {
                 return BadRequest("Cannot ask for future dates");
             }
