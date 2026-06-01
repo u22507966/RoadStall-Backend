@@ -265,6 +265,12 @@ namespace RoadStallAPI.Controllers
         [HttpGet("export/{date}")]
         public async Task<ActionResult<object>> GetExportData(DateTime date)
         {
+            var today = DateTime.Today;
+            if(date > today)
+            {
+                return NotFound(new { message = "Cannot retrieve data for future dates" });
+            }
+
             var history = await _context.StockTakeHistory
                 .Include(h => h.User)
                 .Where(h => h.SnapshotDate.Date == date.Date)
