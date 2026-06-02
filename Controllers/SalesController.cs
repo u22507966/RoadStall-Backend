@@ -163,7 +163,7 @@ namespace RoadStallAPI.Controllers
         public async Task<ActionResult<DateOnly[]>> getDates()
         {
             var today = DateTime.Today;
-            var dates = await _context.Sale.Select(s => s.Date).Where(s => s.Date < today).Distinct().ToListAsync();
+            var dates = await _context.Sale.Select(s => s.Date.Date).Where(s => s.Date < today).Distinct().ToListAsync();
             if (dates.Count == 0)
             {
                 return NotFound(new {message = "No dates with historical data found"});
