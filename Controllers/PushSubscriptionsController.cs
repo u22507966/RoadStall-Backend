@@ -26,8 +26,14 @@ namespace RoadStallAPI.Controllers
             _context = context;
         }
 
+        //[HttpGet("checkSubscription")]
+        //public async Task<ActionResult> checkSubscription([FromBody] PushSubDto sub)
+        //{
+
+        //}
+
         [HttpPost("subscribe")]
-        public async Task<ActionResult> Subscribe([FromBody] PushSubDto sub)
+        public async Task<ActionResult> Subscribe([FromBody] PushSubDto sub, [FromBody] int userId)
         {
             var exists = _context.PushSubscriptions.Any(x => x.Endpoint == sub.Endpoint);
 
@@ -35,6 +41,7 @@ namespace RoadStallAPI.Controllers
             {
                 _context.PushSubscriptions.Add(new PushSubscriptions
                 {
+                    UserId = userId,
                     Endpoint = sub.Endpoint,
                     P256dh = sub.Keys.P256dh,
                     Auth = sub.Keys.Auth
@@ -85,7 +92,27 @@ namespace RoadStallAPI.Controllers
             return Ok(new { message = "Notifications sent to all subscribers" });
         }
 
+        [HttpDelete("deleteSubscription/{id}")]
+        public async Task<ActionResult> deleteSubscription(int id)
+        {
+            var sub = await _context.PushSubscriptions.FindAsync(id);
+            if (sub != null)
+            {
+                _context.PushSubscriptions.Remove(sub);
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Subscription deleted" });
+            }
+            return NotFound(new { message = "No notification subscriptions found" });
+        }
 
+        [HttpDelete("clearSubscriptions")]
+        public async Task<ActionResult> clearSubscriptions()
+        {
+            var allSubscriptions = await _context.PushSubscriptions.ToListAsync();
+            _context.PushSubscriptions.RemoveRange(allSubscriptions);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "All subscriptions cleared" });
+        }
 
 
 
