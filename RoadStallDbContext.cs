@@ -23,5 +23,7 @@ public partial class RoadStallDbContext : DbContext
 
     public DbSet<RoadStallAPI.Models.StockTakeHistory> StockTakeHistory { get; set; } = default!;
 
+    public DbSet<RoadStallAPI.Models.PushSubscriptions> PushSubscriptions { get; set; }
+
 }
 
