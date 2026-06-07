@@ -18,8 +18,8 @@ namespace RoadStallAPI.Controllers
     {
 
         private readonly RoadStallDbContext _context;
-        private readonly string _publicKey = "";
-        private readonly string _privateKey = "";
+        private readonly string _publicKey = "BHsRGFM108YdZjmoUupXm7A48gxA-7QtbsHT2m6R0--xDPe6zl333fFBPa_IiGI0KLAhbtKDyrSTmE2RXrc4kw8";
+        private readonly string _privateKey = "VrPlc_HvIRJGcU_KeRqTUZvs4kewt6mF6CZEapG6_oU";
 
         public PushSubscriptionsController(RoadStallDbContext context)
         {
