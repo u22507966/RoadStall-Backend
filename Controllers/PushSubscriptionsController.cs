@@ -92,6 +92,52 @@ namespace RoadStallAPI.Controllers
             return Ok(new { message = "Notifications sent to all subscribers" });
         }
 
+        [HttpPost("sendStockRequest")]
+        public async Task<ActionResult> sendStockRequest([FromBody] NotificationDto notification)
+        {
+            var subscriptions = await _context.PushSubscriptions
+                .Join(_context.User, 
+                    sub => sub.UserId, 
+                    u => u.Id, 
+                    (sub, u) => new { Subscription = sub, User = u })
+                .Where(x => x.User.RoleId == 1)
+                .Select(x => x.Subscription)
+                .ToListAsync();
+
+            var vapidDetails = new VapidDetails(
+                "mailto:youremail@example.com",
+                _publicKey,
+                _privateKey
+            );
+
+            var webPushClient = new WebPushClient();
+
+            var payload = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                notification = new
+                {
+                    title = notification.Title,
+                    body = notification.Message,
+                }
+            });
+
+            foreach (var sub in subscriptions)
+            {
+                var pushSubscription = new WebPush.PushSubscription(sub.Endpoint, sub.P256dh, sub.Auth);
+
+                try
+                {
+                    await webPushClient.SendNotificationAsync(pushSubscription, payload, vapidDetails);
+                }
+                catch (WebPushException ex)
+                {
+                    Console.WriteLine($"Error sending notification: {ex.Message}");
+                }
+            }
+
+            return Ok(new { message = $"Notifications sent to {subscriptions.Count} admin subscribers" });
+        }
+
         [HttpDelete("deleteSubscription/{id}")]
         public async Task<ActionResult> deleteSubscription(int id)
         {
