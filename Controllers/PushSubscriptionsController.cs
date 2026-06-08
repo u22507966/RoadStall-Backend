@@ -33,18 +33,18 @@ namespace RoadStallAPI.Controllers
         //}
 
         [HttpPost("subscribe")]
-        public async Task<ActionResult> Subscribe([FromBody] PushSubDto sub, [FromBody] int userId)
+        public async Task<ActionResult> Subscribe([FromBody] SubscribeRequestDto request)
         {
-            var exists = _context.PushSubscriptions.Any(x => x.Endpoint == sub.Endpoint);
+            var exists = _context.PushSubscriptions.Any(x => x.Endpoint == request.Subscription.Endpoint);
 
             if (!exists)
             {
                 _context.PushSubscriptions.Add(new PushSubscriptions
                 {
-                    UserId = userId,
-                    Endpoint = sub.Endpoint,
-                    P256dh = sub.Keys.P256dh,
-                    Auth = sub.Keys.Auth
+                    UserId = request.UserId,
+                    Endpoint = request.Subscription.Endpoint,
+                    P256dh = request.Subscription.Keys.P256dh,
+                    Auth = request.Subscription.Keys.Auth
                 });
 
                 await _context.SaveChangesAsync();
