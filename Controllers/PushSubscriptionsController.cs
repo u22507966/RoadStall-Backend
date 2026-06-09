@@ -48,8 +48,10 @@ namespace RoadStallAPI.Controllers
                 });
 
                 await _context.SaveChangesAsync();
+                return Ok(new { message = "Subscription successful from backend" });
             }
-            return Ok(new { message = "Subscription successful from backend" });
+
+            return BadRequest(new { message = "You already have notifications enabled" });
         }
 
         [HttpPost("sendToAll")]
