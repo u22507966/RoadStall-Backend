@@ -18,12 +18,18 @@ namespace RoadStallAPI.Controllers
     {
 
         private readonly RoadStallDbContext _context;
-        private readonly string _publicKey = "BHsRGFM108YdZjmoUupXm7A48gxA-7QtbsHT2m6R0--xDPe6zl333fFBPa_IiGI0KLAhbtKDyrSTmE2RXrc4kw8";
-        private readonly string _privateKey = "VrPlc_HvIRJGcU_KeRqTUZvs4kewt6mF6CZEapG6_oU";
+        private readonly IConfiguration _configuration;
+        private readonly string _publicKey;
+        private readonly string _privateKey;
+        private readonly string _vapidSubject;
 
-        public PushSubscriptionsController(RoadStallDbContext context)
+        public PushSubscriptionsController(RoadStallDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
+            _publicKey = _configuration["VapidSettings:PublicKey"] ?? throw new InvalidOperationException("VAPID PublicKey not configured");
+            _privateKey = _configuration["VapidSettings:PrivateKey"] ?? throw new InvalidOperationException("VAPID PrivateKey not configured");
+            _vapidSubject = _configuration["VapidSettings:Subject"] ?? "mailto:noreply@roadstall.com";
         }
 
         //[HttpGet("checkSubscription")]
@@ -60,7 +66,7 @@ namespace RoadStallAPI.Controllers
             var subscriptions = await _context.PushSubscriptions.ToListAsync();
 
             var vapidDetails = new VapidDetails(
-                "mailto:youremail@example.com",
+                _vapidSubject,
                 _publicKey,
                 _privateKey
             );
@@ -107,7 +113,7 @@ namespace RoadStallAPI.Controllers
                 .ToListAsync();
 
             var vapidDetails = new VapidDetails(
-                "mailto:youremail@example.com",
+                _vapidSubject,
                 _publicKey,
                 _privateKey
             );
